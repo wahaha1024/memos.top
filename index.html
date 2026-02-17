@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
 	<meta charset="UTF-8">
@@ -11,77 +11,108 @@
 	<link href="assets/css/APlayer.min.css" rel="stylesheet" type="text/css">
 	<link href="assets/css/highlight.github.min.css" rel="stylesheet" type="text/css">
 	<link href="assets/css/custom.css" rel="stylesheet" type="text/css">
-	<title>Memos Top</title>
-
+	<title>Memos Top - DayDayUp</title>
 </head>
 
 <body>
 	<header>
 		<div class="menu">
 			<div class="title">DayDayUp</div>
-
 			<div class="pages">
-					<a href="https://github.com/eallion/memos.top" target="_blank" rel="noopener noreferrer" class="">GitHub</a>
-					<a href="https://eallion.com/memos" target="_blank" rel="noopener noreferrer" class="">I'm Feeling Lucky</a>
+					<a href="https://github.com/wahaha1024/memos.top" target="_blank" rel="noopener noreferrer">GitHub</a>
+					<a href="https://mm.zjyyy.top/" target="_blank" rel="noopener noreferrer">Memos</a>
 			</div>
-
 		</div>
-		
 		<div class='theme-toggle'>🌓</div>
-
 	</header>
 
 	<section id="main" class="container">
 		<h1>Memos Top</h1>
-
-		<blockquote>
+		<blockquote style="margin-bottom: 20px;">
 			<p>Je <del>memos</del>, donc je suis - <em>René Descartes fans</em></p>
 		</blockquote>
 
 		<div class="total">Total <span id="total">0</span> Memos 🎉</div>
 
-		<blockquote id="tag-filter" class="filter">
-			<div id="tags"></div>
-		</blockquote>
-
 		<div id="memos" class="memos">
-			<!-- Memos Container -->
+			<div style="text-align:center; padding: 20px;">内容加载中...</div>
 		</div>
-
 	</section>
 
 	<footer class="markdown-body footer">
-		<p>Copyright @
-			<script>
-				document.write(new Date().getFullYear())
-			</script><a href="https://www.eallion.com/" target="_blank" rel="noopener noreferrer" class="hidden">Charles
-				'eallion' Chin</a> All Rights Reserved.
-		</p>
-
+		<p>Copyright @ <script>document.write(new Date().getFullYear())</script> <a href="#">DayDayUp</a>. All Rights Reserved.</p>
 	</footer>
 
-	<!-- Your Memos API -->
+	<script src="assets/js/marked.umd.min.js?v=14.0.0"></script>
+	<script src="assets/js/view-image.min.js"></script>
+	
 	<script type="text/javascript">
-		var memos = {
-			host: 'https://mm.zjyyy.top/',  // Your Memos instance.
-			limit: '10',	// Pagination to show.
-			creatorId: '1',  // The old instance is 101, and the new instance is 1. 
-			domId: '#memos',	// Default #memos.
-			username: 'DayDayUp',	// You can customize the display ID that is not related to memos.
-			name: 'DayDayUp',	// You can customize the displayed full name, that is not related to memos.
-			language: 'zh-CN', // 'en' 'zh-CN' etc. Used by Relative Time.
-			APIVersion: 'new', // 'new' or 'legacy', Memos API Version, <v0.22.0: 'legacy', >=v0.22.0: 'new'.
-			total: true, // Display total memos. No interface is displayed in the new version.
-			doubanAPI: '', // Fill a API to render douban subject. `null` to disable. API self-hosted: https://github.com/eallion/douban-api-rs
+		const memosConfig = {
+			host: 'https://mm.zjyyy.top',
+			parent: 'users/1', // v0.24+ 必须使用 parent
+			pageSize: 10
+		};
+
+		async function loadMemos() {
+			const container = document.getElementById('memos');
+			const totalSpan = document.getElementById('total');
+			// 构造 v0.24+ 专用的 URL
+			const url = `${memosConfig.host}/api/v1/memos?parent=${memosConfig.parent}&pageSize=${memosConfig.pageSize}`;
+
+			try {
+				const response = await fetch(url);
+				if (!response.ok) throw new Error('API 请求失败，状态码: ' + response.status);
+				
+				const data = await response.json();
+				const memos = data.memos || [];
+				totalSpan.innerText = memos.length; // 更新数量
+
+				if (memos.length === 0) {
+					container.innerHTML = "没有发现公开的 Memos。";
+					return;
+				}
+
+				// 渲染列表
+				container.innerHTML = memos.map(memo => {
+					const time = new Date(memo.createTime).toLocaleString();
+					// 使用 marked 处理内容（如果有导入的话）
+					const contentHtml = typeof marked !== 'undefined' ? marked.parse(memo.content) : memo.content;
+					
+					// 简单图片渲染逻辑
+					let imgHtml = "";
+					if (memo.resources) {
+						imgHtml = memo.resources.map(res => 
+							`<div class="res-img"><img src="${memosConfig.host}/file/${res.name}/${res.filename}" alt="res" onclick="window.ViewImage && ViewImage.display(this.src)"></div>`
+						).join('');
+					}
+
+					return `
+						<div class="memo-item" style="background: var(--bg-card); padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+							<div class="memo-content markdown-body">${contentHtml}</div>
+							<div class="memo-res" style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">${imgHtml}</div>
+							<div style="font-size: 12px; color: #888; margin-top: 10px;">${time}</div>
+						</div>
+					`;
+				}).join('');
+
+				// 这里的代码可以根据需要手动初始化 ViewImage
+				if (window.ViewImage) window.ViewImage.init('.res-img img');
+
+			} catch (err) {
+				console.error(err);
+				container.innerHTML = `<div style="color:red; text-align:center;">加载出错: ${err.message}<br>请检查 Memos 后台的 CORS 设置是否包含当前域名。</div>`;
+			}
 		}
 
-	</script>
-	<script type="text/javascript" src="assets/js/marked.umd.min.js?v=14.0.0"></script>
-	<script type="text/javascript" src="assets/js/view-image.min.js"></script>
-	<script type="text/javascript" src="assets/js/APlayer.min.js"></script>
-	<script type="text/javascript" src="assets/js/Meting.min.js"></script>
-	<script type="text/javascript" src="assets/js/main.js"></script>
-	<script type="text/javascript" src="assets/js/custom.js"></script>
-</body>
+		// 主题切换简单逻辑
+		document.querySelector('.theme-toggle').addEventListener('click', () => {
+			document.body.classList.toggle('dark-mode');
+		});
 
+		window.onload = loadMemos;
+	</script>
+
+	<script src="assets/js/APlayer.min.js"></script>
+	<script src="assets/js/Meting.min.js"></script>
+</body>
 </html>
